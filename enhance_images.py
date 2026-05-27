@@ -16,6 +16,7 @@ SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp
 
 @dataclass(frozen=True)
 class EnhancementPreset:
+    description: str
     contrast: float
     color: float
     sharpness: float
@@ -26,10 +27,10 @@ class EnhancementPreset:
 
 
 PRESETS = {
-    "natural": EnhancementPreset(1.06, 1.03, 1.12, 0.0, 1.2, 115, 4),
-    "punchy": EnhancementPreset(1.12, 1.10, 1.22, 0.0, 1.4, 145, 3),
-    "crisp": EnhancementPreset(1.08, 1.04, 1.35, 0.0, 1.1, 165, 2),
-    "max-clean": EnhancementPreset(1.10, 1.06, 1.25, 0.35, 1.6, 150, 5),
+    "natural": EnhancementPreset("light polish for realistic photos", 1.06, 1.03, 1.12, 0.0, 1.2, 115, 4),
+    "punchy": EnhancementPreset("strong web-ready contrast and color", 1.12, 1.10, 1.22, 0.0, 1.4, 145, 3),
+    "crisp": EnhancementPreset("extra edge detail for product-style assets", 1.08, 1.04, 1.35, 0.0, 1.1, 165, 2),
+    "max-clean": EnhancementPreset("subtle smoothing plus sharpening for noisy images", 1.10, 1.06, 1.25, 0.35, 1.6, 150, 5),
 }
 
 
@@ -61,6 +62,12 @@ def format_savings(before: int, after: int) -> str:
         return "n/a"
     saved_percent = max(0.0, (1 - after / before) * 100)
     return f"{saved_percent:.1f}% smaller"
+
+
+def print_presets() -> None:
+    print(paint("Available presets", Style.BOLD))
+    for name, preset in PRESETS.items():
+        print(f"  {paint(name, Style.CYAN):<20} {preset.description}")
 
 
 def iter_images(source_dir: Path, recursive: bool) -> list[Path]:
@@ -201,11 +208,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Overwrite existing WEBP files. Defaults to skipping them.",
     )
+    parser.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="Show enhancement presets and exit.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.list_presets:
+        print_presets()
+        return 0
+
     if not args.input.exists():
         print(paint(f"Input folder does not exist: {args.input}", Style.YELLOW))
         return 1
