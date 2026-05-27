@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -43,7 +44,12 @@ class Style:
     RESET = "\033[0m"
 
 
+USE_COLOR = True
+
+
 def paint(text: str, color: str) -> str:
+    if not USE_COLOR:
+        return text
     return f"{color}{text}{Style.RESET}"
 
 
@@ -213,11 +219,19 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Show enhancement presets and exit.",
     )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI colors in terminal output.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
+    global USE_COLOR
     args = parse_args()
+    USE_COLOR = not args.no_color and "NO_COLOR" not in os.environ
+
     if args.list_presets:
         print_presets()
         return 0
