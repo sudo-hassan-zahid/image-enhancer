@@ -4,12 +4,31 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+
+
+@dataclass(frozen=True)
+class EnhancementPreset:
+    contrast: float
+    color: float
+    sharpness: float
+    unsharp_radius: float
+    unsharp_percent: int
+    unsharp_threshold: int
+
+
+PRESETS = {
+    "natural": EnhancementPreset(1.06, 1.03, 1.12, 1.2, 115, 4),
+    "punchy": EnhancementPreset(1.12, 1.10, 1.22, 1.4, 145, 3),
+    "crisp": EnhancementPreset(1.08, 1.04, 1.35, 1.1, 165, 2),
+    "max-clean": EnhancementPreset(1.10, 1.06, 1.25, 1.6, 150, 5),
+}
 
 
 def iter_images(source_dir: Path) -> list[Path]:
@@ -38,15 +57,19 @@ def resize_for_web(image: Image.Image, max_width: int | None, max_height: int | 
 
 def enhance_image(
     image: Image.Image,
-    contrast: float,
-    color: float,
-    sharpness: float,
+    preset: EnhancementPreset,
 ) -> Image.Image:
     image = ImageOps.autocontrast(image, cutoff=1)
-    image = ImageEnhance.Contrast(image).enhance(contrast)
-    image = ImageEnhance.Color(image).enhance(color)
-    image = ImageEnhance.Sharpness(image).enhance(sharpness)
-    return image.filter(ImageFilter.UnsharpMask(radius=1.4, percent=135, threshold=3))
+    image = ImageEnhance.Contrast(image).enhance(preset.contrast)
+    image = ImageEnhance.Color(image).enhance(preset.color)
+    image = ImageEnhance.Sharpness(image).enhance(preset.sharpness)
+    return image.filter(
+        ImageFilter.UnsharpMask(
+            radius=preset.unsharp_radius,
+            percent=preset.unsharp_percent,
+            threshold=preset.unsharp_threshold,
+        )
+    )
 
 
 def convert_image(
@@ -55,9 +78,7 @@ def convert_image(
     quality: int,
     max_width: int | None,
     max_height: int | None,
-    contrast: float,
-    color: float,
-    sharpness: float,
+    preset: EnhancementPreset,
 ) -> Path:
     output_path = output_dir / f"{input_path.stem}.webp"
 
@@ -66,7 +87,7 @@ def convert_image(
         has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
         image = image.convert("RGBA" if has_alpha else "RGB")
         image = resize_for_web(image, max_width, max_height)
-        image = enhance_image(image, contrast, color, sharpness)
+        image = enhance_image(image, preset)
         save_options = {
             "format": "WEBP",
             "quality": quality,
@@ -118,22 +139,10 @@ def parse_args() -> argparse.Namespace:
         help="Maximum output height in pixels. Defaults to 1920.",
     )
     parser.add_argument(
-        "--contrast",
-        type=float,
-        default=1.08,
-        help="Contrast multiplier. Defaults to 1.08.",
-    )
-    parser.add_argument(
-        "--color",
-        type=float,
-        default=1.05,
-        help="Color multiplier. Defaults to 1.05.",
-    )
-    parser.add_argument(
-        "--sharpness",
-        type=float,
-        default=1.18,
-        help="Sharpness multiplier. Defaults to 1.18.",
+        "--preset",
+        choices=sorted(PRESETS),
+        default="punchy",
+        help="Enhancement preset. Defaults to punchy.",
     )
     return parser.parse_args()
 
@@ -141,6 +150,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    preset = PRESETS[args.preset]
 
     images = iter_images(args.input)
     if not images:
@@ -154,9 +164,7 @@ def main() -> int:
             args.quality,
             args.max_width,
             args.max_height,
-            args.contrast,
-            args.color,
-            args.sharpness,
+            preset,
         )
         print(f"{image_path} -> {output_path}")
 
