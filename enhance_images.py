@@ -19,16 +19,17 @@ class EnhancementPreset:
     contrast: float
     color: float
     sharpness: float
+    smooth_radius: float
     unsharp_radius: float
     unsharp_percent: int
     unsharp_threshold: int
 
 
 PRESETS = {
-    "natural": EnhancementPreset(1.06, 1.03, 1.12, 1.2, 115, 4),
-    "punchy": EnhancementPreset(1.12, 1.10, 1.22, 1.4, 145, 3),
-    "crisp": EnhancementPreset(1.08, 1.04, 1.35, 1.1, 165, 2),
-    "max-clean": EnhancementPreset(1.10, 1.06, 1.25, 1.6, 150, 5),
+    "natural": EnhancementPreset(1.06, 1.03, 1.12, 0.0, 1.2, 115, 4),
+    "punchy": EnhancementPreset(1.12, 1.10, 1.22, 0.0, 1.4, 145, 3),
+    "crisp": EnhancementPreset(1.08, 1.04, 1.35, 0.0, 1.1, 165, 2),
+    "max-clean": EnhancementPreset(1.10, 1.06, 1.25, 0.35, 1.6, 150, 5),
 }
 
 
@@ -92,6 +93,8 @@ def enhance_image(
     preset: EnhancementPreset,
 ) -> Image.Image:
     image = ImageOps.autocontrast(image, cutoff=1)
+    if preset.smooth_radius > 0:
+        image = image.filter(ImageFilter.GaussianBlur(radius=preset.smooth_radius))
     image = ImageEnhance.Contrast(image).enhance(preset.contrast)
     image = ImageEnhance.Color(image).enhance(preset.color)
     image = ImageEnhance.Sharpness(image).enhance(preset.sharpness)
