@@ -106,13 +106,13 @@ def enhance_image(
 
 def convert_image(
     input_path: Path,
-    output_dir: Path,
+    output_path: Path,
     quality: int,
     max_width: int | None,
     max_height: int | None,
     preset: EnhancementPreset,
 ) -> Path:
-    output_path = output_dir / f"{input_path.stem}.webp"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with Image.open(input_path) as image:
         image = ImageOps.exif_transpose(image)
@@ -132,6 +132,13 @@ def convert_image(
         image.save(output_path, **save_options)
 
     return output_path
+
+
+def output_path_for(input_path: Path, input_dir: Path, output_dir: Path, recursive: bool) -> Path:
+    if not recursive:
+        return output_dir / f"{input_path.stem}.webp"
+    relative = input_path.relative_to(input_dir)
+    return output_dir / relative.with_suffix(".webp")
 
 
 def parse_args() -> argparse.Namespace:
@@ -223,7 +230,7 @@ def main() -> int:
 
     for index, image_path in enumerate(images, start=1):
         before = image_path.stat().st_size
-        output_path = args.output / f"{image_path.stem}.webp"
+        output_path = output_path_for(image_path, args.input, args.output, args.recursive)
         if output_path.exists() and not args.force:
             print(
                 f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
@@ -242,7 +249,7 @@ def main() -> int:
 
         output_path = convert_image(
             image_path,
-            args.output,
+            output_path,
             args.quality,
             args.max_width,
             args.max_height,
