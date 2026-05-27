@@ -224,6 +224,9 @@ def main() -> int:
     started = perf_counter()
     total_before = 0
     total_after = 0
+    processed = 0
+    skipped = 0
+    failed = 0
 
     print(paint("Image Enhancer", Style.BOLD))
     print(
@@ -235,6 +238,7 @@ def main() -> int:
         before = image_path.stat().st_size
         output_path = output_path_for(image_path, args.input, args.output, args.recursive)
         if output_path.exists() and not args.force:
+            skipped += 1
             print(
                 f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
                 f"{image_path.name} -> {paint('skipped existing output', Style.YELLOW)}"
@@ -242,6 +246,7 @@ def main() -> int:
             continue
 
         if args.dry_run:
+            skipped += 1
             print(
                 f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
                 f"{image_path.name} -> {output_path.name} "
@@ -250,17 +255,27 @@ def main() -> int:
             total_before += before
             continue
 
-        output_path = convert_image(
-            image_path,
-            output_path,
-            args.quality,
-            args.max_width,
-            args.max_height,
-            preset,
-        )
+        try:
+            output_path = convert_image(
+                image_path,
+                output_path,
+                args.quality,
+                args.max_width,
+                args.max_height,
+                preset,
+            )
+        except OSError as exc:
+            failed += 1
+            print(
+                f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
+                f"{image_path.name} -> {paint(f'failed: {exc}', Style.YELLOW)}"
+            )
+            continue
+
         after = output_path.stat().st_size
         total_before += before
         total_after += after
+        processed += 1
         print(
             f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
             f"{image_path.name} -> {output_path.name} "
@@ -272,11 +287,12 @@ def main() -> int:
     elapsed = perf_counter() - started
     print(
         paint("done", Style.GREEN)
-        + f" {len(images)} image(s), {format_bytes(total_before)} -> "
+        + f" processed={processed} skipped={skipped} failed={failed}, "
+        + f"{format_bytes(total_before)} -> "
         + f"{format_bytes(total_after)} in {elapsed:.2f}s"
     )
 
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
