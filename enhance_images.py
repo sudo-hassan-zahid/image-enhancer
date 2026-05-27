@@ -62,10 +62,11 @@ def format_savings(before: int, after: int) -> str:
     return f"{saved_percent:.1f}% smaller"
 
 
-def iter_images(source_dir: Path) -> list[Path]:
+def iter_images(source_dir: Path, recursive: bool) -> list[Path]:
+    candidates = source_dir.rglob("*") if recursive else source_dir.iterdir()
     return sorted(
         path
-        for path in source_dir.iterdir()
+        for path in candidates
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
@@ -175,15 +176,37 @@ def parse_args() -> argparse.Namespace:
         default="punchy",
         help="Enhancement preset. Defaults to punchy.",
     )
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Find images inside nested folders too.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be processed without writing files.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing WEBP files. Defaults to skipping them.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if not args.input.exists():
+        print(paint(f"Input folder does not exist: {args.input}", Style.YELLOW))
+        return 1
+    if not args.input.is_dir():
+        print(paint(f"Input path is not a folder: {args.input}", Style.YELLOW))
+        return 1
+
     args.output.mkdir(parents=True, exist_ok=True)
     preset = PRESETS[args.preset]
 
-    images = iter_images(args.input)
+    images = iter_images(args.input, args.recursive)
     if not images:
         print(f"No supported images found in {args.input}")
         return 1
@@ -199,6 +222,24 @@ def main() -> int:
     )
 
     for index, image_path in enumerate(images, start=1):
+        before = image_path.stat().st_size
+        output_path = args.output / f"{image_path.stem}.webp"
+        if output_path.exists() and not args.force:
+            print(
+                f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
+                f"{image_path.name} -> {paint('skipped existing output', Style.YELLOW)}"
+            )
+            continue
+
+        if args.dry_run:
+            print(
+                f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
+                f"{image_path.name} -> {output_path.name} "
+                f"{paint('(dry run)', Style.YELLOW)}"
+            )
+            total_before += before
+            continue
+
         output_path = convert_image(
             image_path,
             args.output,
@@ -207,7 +248,6 @@ def main() -> int:
             args.max_height,
             preset,
         )
-        before = image_path.stat().st_size
         after = output_path.stat().st_size
         total_before += before
         total_after += after
