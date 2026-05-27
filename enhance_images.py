@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
@@ -29,6 +30,36 @@ PRESETS = {
     "crisp": EnhancementPreset(1.08, 1.04, 1.35, 1.1, 165, 2),
     "max-clean": EnhancementPreset(1.10, 1.06, 1.25, 1.6, 150, 5),
 }
+
+
+class Style:
+    GREEN = "\033[32m"
+    CYAN = "\033[36m"
+    YELLOW = "\033[33m"
+    DIM = "\033[2m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
+
+def paint(text: str, color: str) -> str:
+    return f"{color}{text}{Style.RESET}"
+
+
+def format_bytes(size: int) -> str:
+    units = ("B", "KB", "MB", "GB")
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def format_savings(before: int, after: int) -> str:
+    if before <= 0:
+        return "n/a"
+    saved_percent = max(0.0, (1 - after / before) * 100)
+    return f"{saved_percent:.1f}% smaller"
 
 
 def iter_images(source_dir: Path) -> list[Path]:
@@ -157,7 +188,17 @@ def main() -> int:
         print(f"No supported images found in {args.input}")
         return 1
 
-    for image_path in images:
+    started = perf_counter()
+    total_before = 0
+    total_after = 0
+
+    print(paint("Image Enhancer", Style.BOLD))
+    print(
+        paint("mode", Style.DIM)
+        + f" preset={args.preset} quality={args.quality} max={args.max_width}x{args.max_height}"
+    )
+
+    for index, image_path in enumerate(images, start=1):
         output_path = convert_image(
             image_path,
             args.output,
@@ -166,7 +207,24 @@ def main() -> int:
             args.max_height,
             preset,
         )
-        print(f"{image_path} -> {output_path}")
+        before = image_path.stat().st_size
+        after = output_path.stat().st_size
+        total_before += before
+        total_after += after
+        print(
+            f"{paint(f'[{index}/{len(images)}]', Style.CYAN)} "
+            f"{image_path.name} -> {output_path.name} "
+            f"{paint(format_bytes(before), Style.DIM)} -> "
+            f"{paint(format_bytes(after), Style.GREEN)} "
+            f"({format_savings(before, after)})"
+        )
+
+    elapsed = perf_counter() - started
+    print(
+        paint("done", Style.GREEN)
+        + f" {len(images)} image(s), {format_bytes(total_before)} -> "
+        + f"{format_bytes(total_after)} in {elapsed:.2f}s"
+    )
 
     return 0
 
